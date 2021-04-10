@@ -1,19 +1,19 @@
 package pl.stypinskiadrian.letsmeet;
 
 public class FreeTime {
-    private final String startTime;
-    private final String endTime;
+    private final Time startTime;
+    private final Time endTime;
 
-    public FreeTime(String startTime, String endTime) {
+    public FreeTime(Time startTime, Time endTime) {
         this.startTime = startTime;
         this.endTime = endTime;
     }
 
-    public String getStartTime() {
+    public Time getStartTime() {
         return startTime;
     }
 
-    public String getEndTime() {
+    public Time getEndTime() {
         return endTime;
     }
 

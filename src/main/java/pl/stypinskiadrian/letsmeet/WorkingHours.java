@@ -1,27 +1,27 @@
 package pl.stypinskiadrian.letsmeet;
 
 public class WorkingHours {
-    private String start;
-    private String end;
+    private Time start;
+    private Time end;
 
-    public WorkingHours(String start, String end) {
+    public WorkingHours(Time start, Time end) {
         this.start = start;
         this.end = end;
     }
 
-    public String getStart() {
+    public Time getStart() {
         return start;
     }
 
-    public void setStart(String start) {
+    public void setStart(Time start) {
         this.start = start;
     }
 
-    public String getEnd() {
+    public Time getEnd() {
         return end;
     }
 
-    public void setEnd(String end) {
+    public void setEnd(Time end) {
         this.end = end;
     }
 }

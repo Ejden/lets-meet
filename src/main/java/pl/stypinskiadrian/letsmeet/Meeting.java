@@ -4,27 +4,27 @@ import org.jetbrains.annotations.NotNull;
 
 public class Meeting implements Comparable<Meeting> {
 
-    private String start;
-    private String end;
+    private Time start;
+    private Time end;
 
-    public Meeting(String start, String end) {
+    public Meeting(Time start, Time end) {
         this.start = start;
         this.end = end;
     }
 
-    public String getStart() {
+    public Time getStart() {
         return start;
     }
 
-    public void setStart(@NotNull String start) {
-        this.start = start;
-    }
-
-    public String getEnd() {
+    public Time getEnd() {
         return end;
     }
 
-    public void setEnd(@NotNull String end) {
+    public void setStart(Time start) {
+        this.start = start;
+    }
+
+    public void setEnd(Time end) {
         this.end = end;
     }
 
@@ -32,8 +32,8 @@ public class Meeting implements Comparable<Meeting> {
     public int compareTo(@NotNull Meeting o) {
         if (this == o) return 0;
 
-        CalendarUtils.Time thisTime = CalendarUtils.getParsedTime(start);
-        CalendarUtils.Time oTime = CalendarUtils.getParsedTime(o.start);
+        Time thisTime = start;
+        Time oTime = o.start;
 
         if (thisTime.getHour() > oTime.getHour()) return 1;
         if (thisTime.getHour() < oTime.getHour()) return -1;

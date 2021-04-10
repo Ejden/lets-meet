@@ -3,7 +3,6 @@ package pl.stypinskiadrian.letsmeet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 public class CalendarUtils {
@@ -20,10 +19,10 @@ public class CalendarUtils {
         if (calendars.length == 0) return joinedCalendar;
 
         // Search for the latest start working hours
-        Time latest = getParsedTime(calendars[0].getWorkingHours().getStart());
+        Time latest = calendars[0].getWorkingHours().getStart();
 
         for (Calendar calendar : calendars) {
-            Time time = getParsedTime(calendar.getWorkingHours().getStart());
+            Time time = calendar.getWorkingHours().getStart();
 
             if (latest.compareTo(time) < 0) {
                 latest = time;
@@ -31,17 +30,17 @@ public class CalendarUtils {
         }
 
         // Search for the earliest working hours end
-        Time earliest = getParsedTime(calendars[0].getWorkingHours().getEnd());
+        Time earliest = calendars[0].getWorkingHours().getEnd();
         for (Calendar calendar : calendars) {
-            Time time = getParsedTime(calendar.getWorkingHours().getEnd());
+            Time time = calendar.getWorkingHours().getEnd();
 
             if (earliest.compareTo(time) > 0) {
                 earliest = time;
             }
         }
 
-        joinedCalendar.getWorkingHours().setStart(latest.toString());
-        joinedCalendar.getWorkingHours().setEnd(earliest.toString());
+        joinedCalendar.getWorkingHours().setStart(latest);
+        joinedCalendar.getWorkingHours().setEnd(earliest);
 
         return joinedCalendar;
     }
@@ -54,8 +53,8 @@ public class CalendarUtils {
      */
     private static List<FreeTime> findFreeTimeInCalendar(Calendar calendar, int requestedFreeTime) {
         List<FreeTime> freeTimes = new ArrayList<>();
-        Time startTime = getParsedTime(calendar.getWorkingHours().getStart());
-        Time endTime = getParsedTime(calendar.getWorkingHours().getEnd());
+        Time startTime = calendar.getWorkingHours().getStart();
+        Time endTime = calendar.getWorkingHours().getEnd();
 
         List<Meeting> meetings = calendar.getPlannedMeetings()
                 .stream()
@@ -68,15 +67,15 @@ public class CalendarUtils {
             Meeting meeting = meetings.get(i);
 
             // Getting rid of meetings that are not in the working hours
-            if (getParsedTime(meeting.getEnd()).minuteDifferenceBetween(startTime) < 0) {
+            if (meeting.getEnd().minuteDifferenceBetween(startTime) < 0) {
                 meetings.remove(i--);
                 continue;
             }
 
             if (!hasPrevious) {
-                if (getParsedTime(meeting.getStart()).minuteDifferenceBetween(startTime) >= requestedFreeTime) {
+                if (meeting.getStart().minuteDifferenceBetween(startTime) >= requestedFreeTime) {
                     // There is enough time before first meeting and starting hour
-                    freeTimes.add(new FreeTime(startTime.toString(), getParsedTime(meeting.getStart()).toString()));
+                    freeTimes.add(new FreeTime(startTime, meeting.getStart()));
                 }
 
                 continue;
@@ -85,22 +84,22 @@ public class CalendarUtils {
             if (i+1 >= meetings.size()) {
                 // This is the last meeting in calendar
                 // Check if there is enough time after previous meeting
-                if (getParsedTime(meeting.getStart()).minuteDifferenceBetween(getParsedTime(previous.getEnd())) >= requestedFreeTime) {
-                    freeTimes.add(new FreeTime(getParsedTime(previous.getEnd()).toString(), getParsedTime(meeting.getStart()).toString()));
+                if (meeting.getStart().minuteDifferenceBetween(previous.getEnd()) >= requestedFreeTime) {
+                    freeTimes.add(new FreeTime(previous.getEnd(), meeting.getStart()));
                 }
 
                 // Check if there is enough time before end of working hours and end of current meeting
-                if (endTime.minuteDifferenceBetween(getParsedTime(meeting.getEnd())) >= requestedFreeTime) {
+                if (endTime.minuteDifferenceBetween(meeting.getEnd()) >= requestedFreeTime) {
                     // There is enough time after last meeting and end of working time
-                    freeTimes.add(new FreeTime(getParsedTime(meeting.getEnd()).toString(), endTime.toString()));
+                    freeTimes.add(new FreeTime(meeting.getEnd(), endTime));
                 }
 
                 break;
             }
 
-            if (getParsedTime(meeting.getStart()).minuteDifferenceBetween(getParsedTime(previous.getEnd())) >= requestedFreeTime) {
+            if (meeting.getStart().minuteDifferenceBetween(previous.getEnd()) >= requestedFreeTime) {
                 // There is enough time between two meetings
-                freeTimes.add(new FreeTime(getParsedTime(previous.getEnd()).toString(), getParsedTime(meeting.getStart()).toString()));
+                freeTimes.add(new FreeTime(previous.getEnd(), meeting.getStart()));
             }
         }
 
@@ -108,13 +107,26 @@ public class CalendarUtils {
     }
 
     private List<Meeting> removeMeetingsOffWorkingHours(Time workingFrom, Time workingTo, List<Meeting> meetings) {
-        Iterator<Meeting> iterator = meetings.iterator();
+        List<Meeting> result = meetings.stream()
+                .map(meeting -> new Meeting(meeting.getStart().clone(), meeting.getEnd().clone()))
+                .collect(Collectors.toList());
+
+        Iterator<Meeting> iterator = result.iterator();
 
         while (iterator.hasNext()) {
+            Meeting meeting = iterator.next();
 
+            if (meeting.getEnd().minuteDifferenceBetween(workingFrom) < 0) {
+                iterator.remove();
+                continue;
+            }
+
+            if (meeting.getStart().minuteDifferenceBetween(workingTo) > 0) {
+                iterator.remove();
+            }
         }
 
-        return null;
+        return result;
     }
 
     /**
@@ -127,9 +139,9 @@ public class CalendarUtils {
      */
     private static Calendar joinCalendars(Calendar... calendars) {
         // User didn't provide any calendars, so we just simply return empty calendar with no meetings
-        if (calendars.length == 0) return new Calendar(new WorkingHours("00:00", "23:59"));
+        if (calendars.length == 0) return new Calendar(new WorkingHours(new Time("00:00"), new Time("23:59")));
 
-        Calendar joinCalendar = new Calendar(new WorkingHours("00:00", "23:59"));
+        Calendar joinCalendar = new Calendar(new WorkingHours(new Time("00:00"), new Time("23:59")));
 
         // Adding all meetings from first calendar to joinedCalendar
         List<Meeting> meetings = new ArrayList<>();
@@ -146,10 +158,10 @@ public class CalendarUtils {
                 break;
             }
 
-            Time currMeetStart = getParsedTime(meetings.get(j).getStart());
-            Time currMeetEnd = getParsedTime(meetings.get(j).getEnd());
-            Time prevMeetStart = getParsedTime(meetings.get(j-1).getStart());
-            Time prevMeetEnd = getParsedTime(meetings.get(j-1).getEnd());
+            Time currMeetStart = meetings.get(j).getStart();
+            Time currMeetEnd = meetings.get(j).getEnd();
+            Time prevMeetStart = meetings.get(j-1).getStart();
+            Time prevMeetEnd = meetings.get(j-1).getEnd();
 
             // Meetings starts at the same time
             if (currMeetStart.compareTo(prevMeetStart) == 0) {
@@ -175,58 +187,5 @@ public class CalendarUtils {
         meetings.forEach(joinCalendar::addMeeting);
 
         return joinCalendar;
-    }
-
-    public static Time getParsedTime(@NotNull String time) {
-        Matcher matcher = Calendar.hourPattern.matcher(time);
-        if (matcher.matches()) {
-            return new Time(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
-        }
-
-        throw new IllegalArgumentException();
-    }
-
-    public static class Time implements Comparable<Time> {
-        private final int hour;
-        private final int minutes;
-
-        public Time(int hour, int minutes) {
-            this.hour = hour;
-            this.minutes = minutes;
-        }
-
-        public int getHour() {
-            return hour;
-        }
-
-        public int getMinutes() {
-            return minutes;
-        }
-
-        @Override
-        public int compareTo(@NotNull CalendarUtils.Time o) {
-            if (this == o) return 0;
-            if (this.hour > o.hour) return 1;
-            if (this.hour < o.hour) return -1;
-
-            return Integer.compare(this.minutes, o.minutes);
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder stringBuilder = new StringBuilder();
-
-            if (this.hour < 10) stringBuilder.append(0);
-            stringBuilder.append(hour);
-            stringBuilder.append(":");
-            if (this.minutes < 10) stringBuilder.append(0);
-            stringBuilder.append(minutes);
-
-            return stringBuilder.toString();
-        }
-
-        public int minuteDifferenceBetween(Time o) {
-            return (this.minutes - o.getMinutes()) + (60 * (this.hour - o.getHour()));
-        }
     }
 }
