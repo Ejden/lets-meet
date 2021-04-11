@@ -7,6 +7,12 @@ import java.util.stream.Collectors;
 
 public class CalendarUtils {
 
+    /**
+     *
+     * @param requestedMeetingDuration in minutes
+     * @param calendars calendars in which we want to search for free time
+     * @return proposal free time for a meeting
+     */
     public static List<FreeTime> findProposalMeetingTimes(int requestedMeetingDuration, Calendar... calendars) {
         Calendar joinedCalendar = joinCalendars(calendars);
         intersectWorkingHours(joinedCalendar, calendars);
@@ -14,9 +20,15 @@ public class CalendarUtils {
         return findFreeTimeInCalendar(joinedCalendar, requestedMeetingDuration);
     }
 
-    private static Calendar intersectWorkingHours(@NotNull Calendar joinedCalendar, Calendar... calendars) {
+    /**
+     *
+     * @param joinedCalendar calendar with all meetings connected together
+     * @param calendars array of calendars in which we're searching for the latest start of working hours
+     *                  and earliest end of working hours
+     */
+    private static void intersectWorkingHours(@NotNull Calendar joinedCalendar, Calendar... calendars) {
         // If there is no provided calendars just return joinedCalendar
-        if (calendars.length == 0) return joinedCalendar;
+        if (calendars.length == 0) return;
 
         // Search for the latest start working hours
         Time latest = calendars[0].getWorkingHours().getStart();
@@ -39,53 +51,62 @@ public class CalendarUtils {
             }
         }
 
+        // Modifying working time, now it will only contain common working hours
         joinedCalendar.getWorkingHours().setStart(latest);
         joinedCalendar.getWorkingHours().setEnd(earliest);
-
-        return joinedCalendar;
     }
 
     /**
      *
      * @param calendar in which you're searching for free time
      * @param requestedFreeTime in minutes
-     * @return
+     * @return list of common free time that is at least as long as requestedFreeTime
      */
     private static List<FreeTime> findFreeTimeInCalendar(Calendar calendar, int requestedFreeTime) {
         List<FreeTime> freeTimes = new ArrayList<>();
         Time startTime = calendar.getWorkingHours().getStart();
         Time endTime = calendar.getWorkingHours().getEnd();
 
+        // We don't want to work on original meetings, so we're copying them
         List<Meeting> meetings = calendar.getPlannedMeetings()
                 .stream()
                 .map(meeting -> new Meeting(meeting.getStart(), meeting.getEnd()))
                 .collect(Collectors.toList());
 
+        meetings = removeMeetingsOffWorkingHours(calendar.getWorkingHours().getStart(), calendar.getWorkingHours().getEnd(), meetings);
+
+        if (meetings.size() == 0) {
+            // There is no meetings in any of calendars
+            if (endTime.minuteDifferenceBetween(startTime) >= requestedFreeTime) {
+                freeTimes.add(new FreeTime(startTime, endTime));
+            }
+
+            return freeTimes;
+        }
+
         for (int i = 0; ; i++) {
-            boolean hasPrevious = (meetings.size() > i && i-1 >= 0);
+            if (i >= meetings.size()) {
+                break;
+            }
+
+            boolean hasPrevious = i-1 >= 0;
             Meeting previous = (hasPrevious) ? meetings.get(i-1) : null;
             Meeting meeting = meetings.get(i);
-
-            // Getting rid of meetings that are not in the working hours
-            if (meeting.getEnd().minuteDifferenceBetween(startTime) < 0) {
-                meetings.remove(i--);
-                continue;
-            }
 
             if (!hasPrevious) {
                 if (meeting.getStart().minuteDifferenceBetween(startTime) >= requestedFreeTime) {
                     // There is enough time before first meeting and starting hour
                     freeTimes.add(new FreeTime(startTime, meeting.getStart()));
                 }
-
-                continue;
             }
 
             if (i+1 >= meetings.size()) {
                 // This is the last meeting in calendar
                 // Check if there is enough time after previous meeting
-                if (meeting.getStart().minuteDifferenceBetween(previous.getEnd()) >= requestedFreeTime) {
-                    freeTimes.add(new FreeTime(previous.getEnd(), meeting.getStart()));
+                if (hasPrevious) {
+                    if (meeting.getStart().minuteDifferenceBetween(previous.getEnd()) >= requestedFreeTime) {
+                        freeTimes.add(new FreeTime(previous.getEnd(), meeting.getStart()));
+                    }
                 }
 
                 // Check if there is enough time before end of working hours and end of current meeting
@@ -97,16 +118,26 @@ public class CalendarUtils {
                 break;
             }
 
-            if (meeting.getStart().minuteDifferenceBetween(previous.getEnd()) >= requestedFreeTime) {
-                // There is enough time between two meetings
-                freeTimes.add(new FreeTime(previous.getEnd(), meeting.getStart()));
+            if (hasPrevious) {
+                if (meeting.getStart().minuteDifferenceBetween(previous.getEnd()) >= requestedFreeTime) {
+                    // There is enough time between two meetings
+                    freeTimes.add(new FreeTime(previous.getEnd(), meeting.getStart()));
+                }
             }
         }
 
         return freeTimes;
     }
 
-    private List<Meeting> removeMeetingsOffWorkingHours(Time workingFrom, Time workingTo, List<Meeting> meetings) {
+    /**
+     *
+     * @param workingFrom start of working hours
+     * @param workingTo end of working hours
+     * @param meetings
+     * @return meetings that are between workingFrom and workingTo
+     */
+    private static List<Meeting> removeMeetingsOffWorkingHours(Time workingFrom, Time workingTo, List<Meeting> meetings) {
+        // We don't want to work on original meetings, so we're copying them
         List<Meeting> result = meetings.stream()
                 .map(meeting -> new Meeting(meeting.getStart().clone(), meeting.getEnd().clone()))
                 .collect(Collectors.toList());
@@ -146,8 +177,12 @@ public class CalendarUtils {
         // Adding all meetings from first calendar to joinedCalendar
         List<Meeting> meetings = new ArrayList<>();
 
+        // Copying all meetings, we don't want to modify original meetings
         Arrays.stream(calendars)
-                .forEach(calendar -> meetings.addAll(calendar.getPlannedMeetings()));
+                .forEach(calendar -> calendar.getPlannedMeetings()
+                        .forEach(meeting -> meetings.add(new Meeting(meeting.getStart().clone(), meeting.getEnd().clone())))
+                );
+
 
         // We're sorting meetings by meeting start hour
         meetings.sort(Comparator.naturalOrder());

@@ -7,7 +7,11 @@ public class Meeting implements Comparable<Meeting> {
     private Time start;
     private Time end;
 
-    public Meeting(Time start, Time end) {
+    public Meeting(@NotNull Time start, @NotNull Time end) {
+        if (end.minuteDifferenceBetween(start) < 0) {
+            throw new TimeChronologyException("startTime should be before endTime!");
+        }
+
         this.start = start;
         this.end = end;
     }

@@ -13,5 +13,6 @@ public class Main {
         cal2.addMeeting(new Meeting(new Time("16:00"), new Time("17:00")));
 
         System.out.println(CalendarUtils.findProposalMeetingTimes(30, cal1, cal2));
+        System.out.println();
     }
 }

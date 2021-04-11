@@ -12,11 +12,15 @@ public class Time implements Comparable<Time> {
     private final int minutes;
 
     public Time(int hour, int minutes) {
+        if (hour >= 24 || hour < 0 || minutes >= 60 || minutes < 0) {
+            throw new IllegalArgumentException("Hour should be between 0-23, minutes should be between 0-59");
+        }
+
         this.hour = hour;
         this.minutes = minutes;
     }
 
-    public Time(String time) {
+    public Time(@NotNull String time) {
         Matcher matcher = timePattern.matcher(time);
         if (matcher.matches()) {
             this.hour = Integer.parseInt(matcher.group(1));
@@ -60,7 +64,7 @@ public class Time implements Comparable<Time> {
         return stringBuilder.toString();
     }
 
-    public int minuteDifferenceBetween(Time o) {
+    public int minuteDifferenceBetween(@NotNull Time o) {
         return (this.minutes - o.getMinutes()) + (60 * (this.hour - o.getHour()));
     }
 }
